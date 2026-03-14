@@ -110,7 +110,6 @@ def parse_stations(html: str, tabla: dict) -> tuple[list[dict], list[str]]:
                 "id_medicion":    id_med.group(1)         if id_med    else "",
                 "unidad_id":      unidad_id,
                 "estacion":       nombre,
-                "fuente_nombre":  fuente,
                 "fecha":          fecha.group(1),
                 "saldo_lts":      int(saldo.group(1).replace(",", "")),
                 "mangueras":      int(mangueras.group(1))   if mangueras  else 0,
@@ -132,7 +131,7 @@ def save_to_csv(records: list[dict], filepath: str):
     file_exists = os.path.isfile(filepath)
 
     fieldnames = [
-        "id_medicion", "unidad_id", "estacion", "fuente_nombre", "fecha",
+        "id_medicion", "unidad_id", "estacion", "fecha",
         "saldo_lts", "mangueras", "carga_prom_lts",
         "vehiculos_est", "min_x_manguera", "scrape_ts"
     ]
