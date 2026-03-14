@@ -1,0 +1,42 @@
+name: Biopetrol Scraper
+
+on:
+  schedule:
+    # Cada 30 minutos entre 06:00 y 22:00 hora Bolivia (UTC-4)
+    # En UTC: 10:00 – 02:00 del día siguiente
+    - cron: '0,30 10-23 * * *'
+    - cron: '0,30 0-2  * * *'
+
+  # Permite ejecutar manualmente desde la pestaña Actions
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          # Necesario para poder hacer commit del CSV actualizado
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install requests
+
+      - name: Ejecutar scraper
+        run: python scraper.py
+
+      - name: Commit y push del CSV actualizado
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/saldos.csv
+          # Solo hace commit si hay cambios reales
+          git diff --staged --quiet || git commit -m "data: scrape $(date -u '+%Y-%m-%d %H:%M') UTC"
+          git push
