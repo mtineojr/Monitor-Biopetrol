@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor Biopetrol — Santa Cruz</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg2: #111620;
+    --bg3: #1a2030;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaf0;
+    --text2: #8890a4;
+    --text3: #4a5168;
+    --accent: #f0a500;
+    --accent2: #e05c2a;
+    --green: #2ecc8a;
+    --red: #e84545;
+    --yellow: #f0a500;
+    --blue: #4a9eff;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg2);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+  .logo h1 {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .logo span { color: var(--accent); }
+  #last-update {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+  }
+  nav {
+    display: flex;
+    gap: 2px;
+    padding: 12px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .tab {
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text2);
+    border: none;
+    background: transparent;
+    transition: all 0.15s;
+    letter-spacing: 0.03em;
+  }
+  .tab:hover { color: var(--text); background: var(--bg3); }
+  .tab.active { color: var(--accent); background: rgba(240,165,0,0.1); }
+  main { padding: 24px 28px; max-width: 1400px; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .kpi {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+  .kpi-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 8px;
+  }
+  .kpi-value {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1;
+  }
+  .kpi-value.red { color: var(--red); }
+  .kpi-value.green { color: var(--green); }
+  .kpi-value.yellow { color: var(--yellow); }
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 4px;
+  }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .card-title {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 16px;
+  }
+  .station-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .station-row:last-child { border-bottom: none; }
+  .station-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    width: 110px;
+    flex-shrink: 0;
+  }
+  .bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: var(--bg3);
+    border-radius: 3px;
+    margin: 0 12px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+  .saldo-val {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+    width: 72px;
+    text-align: right;
+  }
+  .badge {
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    margin-left: 8px;
+  }
+  .badge.red { background: rgba(232,69,69,0.15); color: var(--red); }
+  .badge.yellow { background: rgba(240,165,0,0.15); color: var(--yellow); }
+  .badge.green { background: rgba(46,204,138,0.15); color: var(--green); }
+  .section-title {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 14px;
+  }
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+  }
+  .alert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    border-left: 3px solid;
+  }
+  .alert-item.red { background: rgba(232,69,69,0.08); border-color: var(--red); }
+  .alert-item.yellow { background: rgba(240,165,0,0.08); border-color: var(--yellow); }
+  .alert-item.blue { background: rgba(74,158,255,0.08); border-color: var(--blue); }
+  .alert-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .alert-dot.red { background: var(--red); }
+  .alert-dot.yellow { background: var(--yellow); }
+  .alert-dot.blue { background: var(--blue); }
+  .alert-text { font-size: 12px; color: var(--text); }
+  .alert-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  #loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text3);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+  }
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .heatmap-grid {
+    display: grid;
+    gap: 3px;
+  }
+  .hm-cell {
+    height: 28px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text2);
+    cursor: default;
+    transition: opacity 0.15s;
+  }
+  .hm-cell:hover { opacity: 0.8; }
+  .hm-label {
+    font-size: 10px;
+    color: var(--text3);
+    text-align: center;
+    padding: 2px 0;
+  }
+  .eta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .eta-row:last-child { border-bottom: none; }
+  .eta-name { font-size: 13px; font-weight: 500; color: var(--text); width: 110px; }
+  .eta-rate { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+  .eta-val {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: right;
+  }
+  .error-msg {
+    padding: 20px;
+    background: rgba(232,69,69,0.08);
+    border: 1px solid rgba(232,69,69,0.2);
+    border-radius: 6px;
+    color: var(--text2);
+    font-size: 12px;
+    font-family: var(--mono);
+  }
+  .repo-input {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    align-items: center;
+  }
+  .repo-input input {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+  }
+  .repo-input input:focus { border-color: var(--accent); }
+  .repo-input button {
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    color: #000;
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .repo-input button:hover { opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <h1>Monitor <span>Biopetrol</span> · Santa Cruz</h1>
+  </div>
+  <div id="last-update">—</div>
+</header>
+
+<nav>
+  <button class="tab active" onclick="showPage('estado')">Estado actual</button>
+  <button class="tab" onclick="showPage('proyeccion')">Proyección</button>
+  <button class="tab" onclick="showPage('patrones')">Patrones horarios</button>
+</nav>
+
+<main>
+  <div class="repo-input">
+    <input type="text" id="csv-url" placeholder="URL raw del CSV en GitHub (raw.githubusercontent.com/...)" />
+    <button onclick="loadData()">Cargar datos</button>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    Ingresa la URL de tu CSV y presiona Cargar datos
+  </div>
+
+  <div id="content" style="display:none">
+
+    <!-- PÁGINA 1: ESTADO ACTUAL -->
+    <div id="page-estado" class="page active">
+      <div class="kpi-row" id="kpi-row"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Saldo por estación — última medición</div>
+          <div id="station-bars"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Alertas activas</div>
+          <div id="alertas"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Evolución saldo total de red (Lts)</div>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="chart-red"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- PÁGINA 2: PROYECCIÓN -->
+    <div id="page-proyeccion" class="page">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Tiempo estimado de agotamiento</div>
+          <div id="eta-table"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Tasa de consumo promedio (Lts/hora)</div>
+          <div class="chart-wrap" style="height:280px">
+            <canvas id="chart-tasa"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Tendencia de saldo por estación</div>
+        <div style="margin-bottom:10px; display:flex; gap:8px; flex-wrap:wrap" id="station-toggles"></div>
+        <div class="chart-wrap" style="height:260px">
+          <canvas id="chart-tendencia"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- PÁGINA 3: PATRONES -->
+    <div id="page-patrones" class="page">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Consumo promedio por hora del día</div>
+          <div class="chart-wrap" style="height:240px">
+            <canvas id="chart-hora"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Consumo promedio por día de semana</div>
+          <div class="chart-wrap" style="height:240px">
+            <canvas id="chart-dia"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Heatmap consumo — hora × día de semana (Lts promedio)</div>
+        <div id="heatmap-container" style="overflow-x:auto"></div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+const PALETTE = ['#4a9eff','#f0a500','#2ecc8a','#e84545','#c478f0','#e05c2a','#45d4e8','#f06292','#a5d65c'];
+const DIAS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+
+let allData = [], charts = {};
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/\r/,''));
+  return lines.slice(1).map(line => {
+    const vals = line.split(',');
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (vals[i] || '').trim().replace(/\r/,''));
+    obj.saldo_lts = parseInt(obj.saldo_lts) || 0;
+    obj.vehiculos_est = parseFloat(obj.vehiculos_est) || 0;
+    obj.mangueras = parseInt(obj.mangueras) || 0;
+    obj.fecha_dt = new Date(obj.fecha);
+    obj.scrape_dt = new Date(obj.scrape_ts);
+    obj.hora = obj.fecha_dt.getHours();
+    obj.num_dia = (obj.fecha_dt.getDay() + 6) % 7; // 0=Lunes
+    return obj;
+  }).filter(r => !isNaN(r.fecha_dt.getTime()) && r.estacion);
+}
+
+function getLatest(data) {
+  const byStation = {};
+  data.forEach(r => {
+    if (!byStation[r.estacion] || r.fecha_dt > byStation[r.estacion].fecha_dt)
+      byStation[r.estacion] = r;
+  });
+  return Object.values(byStation);
+}
+
+function calcConsumo(data) {
+  const byStation = {};
+  data.forEach(r => {
+    if (!byStation[r.estacion]) byStation[r.estacion] = [];
+    byStation[r.estacion].push(r);
+  });
+  const result = [];
+  Object.values(byStation).forEach(rows => {
+    rows.sort((a,b) => a.fecha_dt - b.fecha_dt);
+    for (let i = 1; i < rows.length; i++) {
+      const delta = rows[i-1].saldo_lts - rows[i].saldo_lts;
+      const mins = (rows[i].fecha_dt - rows[i-1].fecha_dt) / 60000;
+      if (delta > 0 && mins > 0 && mins < 120) {
+        result.push({
+          estacion: rows[i].estacion,
+          fecha_dt: rows[i].fecha_dt,
+          hora: rows[i].hora,
+          num_dia: rows[i].num_dia,
+          consumo: delta,
+          tasa_hora: (delta / mins) * 60
+        });
+      }
+    }
+  });
+  return result;
+}
+
+function semaforo(lts) {
+  if (lts < 500) return 'red';
+  if (lts < 2000) return 'yellow';
+  return 'green';
+}
+
+function formatLts(n) {
+  return n.toLocaleString('es-BO') + ' Lts';
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+async function loadData() {
+  const url = document.getElementById('csv-url').value.trim();
+  if (!url) return;
+
+  document.getElementById('loading').innerHTML = '<div class="spinner"></div>Cargando datos...';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('content').style.display = 'none';
+
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const text = await resp.text();
+    allData = parseCSV(text);
+    if (!allData.length) throw new Error('CSV vacío o formato incorrecto');
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+
+    const lastTs = new Date(Math.max(...allData.map(r => r.scrape_dt)));
+    document.getElementById('last-update').textContent =
+      'Actualizado: ' + lastTs.toLocaleString('es-BO', {dateStyle:'short', timeStyle:'short'});
+
+    renderEstado();
+    renderProyeccion();
+    renderPatrones();
+  } catch(e) {
+    document.getElementById('loading').innerHTML =
+      '<div class="error-msg">Error al cargar: ' + e.message +
+      '<br><br>Verifica que la URL sea el archivo raw de GitHub y que el repo sea público o el CSV accesible.</div>';
+  }
+}
+
+function renderEstado() {
+  const latest = getLatest(allData);
+  const totalRed = latest.reduce((s, r) => s + r.saldo_lts, 0);
+  const criticas = latest.filter(r => r.saldo_lts < 500).length;
+  const bajas    = latest.filter(r => r.saldo_lts >= 500 && r.saldo_lts < 2000).length;
+  const normales = latest.filter(r => r.saldo_lts >= 2000).length;
+
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi">
+      <div class="kpi-label">Saldo total red</div>
+      <div class="kpi-value">${(totalRed/1000).toFixed(1)}k</div>
+      <div class="kpi-sub">Litros disponibles</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Estaciones críticas</div>
+      <div class="kpi-value ${criticas > 0 ? 'red' : 'green'}">${criticas}</div>
+      <div class="kpi-sub">Bajo 500 Lts</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Estaciones bajas</div>
+      <div class="kpi-value ${bajas > 0 ? 'yellow' : 'green'}">${bajas}</div>
+      <div class="kpi-sub">Entre 500–2,000 Lts</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Estaciones normales</div>
+      <div class="kpi-value green">${normales}</div>
+      <div class="kpi-sub">Sobre 2,000 Lts</div>
+    </div>
+  `;
+
+  const maxSaldo = Math.max(...latest.map(r => r.saldo_lts));
+  const sorted = [...latest].sort((a,b) => a.saldo_lts - b.saldo_lts);
+  const colorMap = { red: '#e84545', yellow: '#f0a500', green: '#2ecc8a' };
+
+  document.getElementById('station-bars').innerHTML = sorted.map(r => {
+    const s = semaforo(r.saldo_lts);
+    const pct = Math.round((r.saldo_lts / maxSaldo) * 100);
+    return `<div class="station-row">
+      <div class="station-name">${r.estacion}</div>
+      <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${colorMap[s]}"></div></div>
+      <div class="saldo-val">${r.saldo_lts.toLocaleString('es-BO')}<span class="badge ${s}">${s === 'red' ? 'CRÍTICO' : s === 'yellow' ? 'BAJO' : 'OK'}</span></div>
+    </div>`;
+  }).join('');
+
+  const alertas = [];
+  sorted.filter(r => r.saldo_lts < 500).forEach(r => {
+    alertas.push(`<div class="alert-item red"><div class="alert-dot red"></div><div>
+      <div class="alert-text">${r.estacion} — Stock crítico</div>
+      <div class="alert-sub">${formatLts(r.saldo_lts)} · ~${Math.round(r.vehiculos_est)} vehículos</div>
+    </div></div>`);
+  });
+  sorted.filter(r => r.saldo_lts >= 500 && r.saldo_lts < 2000).forEach(r => {
+    alertas.push(`<div class="alert-item yellow"><div class="alert-dot yellow"></div><div>
+      <div class="alert-text">${r.estacion} — Stock bajo</div>
+      <div class="alert-sub">${formatLts(r.saldo_lts)} · ~${Math.round(r.vehiculos_est)} vehículos</div>
+    </div></div>`);
+  });
+  if (!alertas.length) alertas.push(`<div class="alert-item blue"><div class="alert-dot blue"></div><div>
+    <div class="alert-text">Sin alertas activas</div>
+    <div class="alert-sub">Todas las estaciones sobre umbral mínimo</div>
+  </div></div>`);
+  document.getElementById('alertas').innerHTML = alertas.join('');
+
+  // Gráfico evolución saldo red
+  const byDate = {};
+  allData.forEach(r => {
+    const key = r.scrape_ts.substring(0,16);
+    if (!byDate[key]) byDate[key] = { ts: r.scrape_dt, total: 0 };
+    byDate[key].total += r.saldo_lts;
+  });
+  const redSeries = Object.values(byDate).sort((a,b) => a.ts - b.ts);
+
+  destroyChart('chart-red');
+  charts['chart-red'] = new Chart(document.getElementById('chart-red'), {
+    type: 'line',
+    data: {
+      labels: redSeries.map(d => d.ts.toLocaleString('es-BO', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})),
+      datasets: [{
+        data: redSeries.map(d => d.total),
+        borderColor: '#4a9eff',
+        backgroundColor: 'rgba(74,158,255,0.08)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#4a5168', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#4a5168', font: { size: 10 }, callback: v => (v/1000).toFixed(0)+'k' }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+}
+
+function renderProyeccion() {
+  const consumos = calcConsumo(allData);
+  const latest = getLatest(allData);
+
+  // Tasa promedio por estación
+  const tasaMap = {};
+  consumos.forEach(c => {
+    if (!tasaMap[c.estacion]) tasaMap[c.estacion] = [];
+    tasaMap[c.estacion].push(c.tasa_hora);
+  });
+
+  const etaData = latest.map(r => {
+    const tasas = tasaMap[r.estacion] || [];
+    const tasaProm = tasas.length ? tasas.reduce((a,b) => a+b,0) / tasas.length : null;
+    const etaHoras = tasaProm ? r.saldo_lts / tasaProm : null;
+    return { ...r, tasa: tasaProm, eta: etaHoras };
+  }).sort((a,b) => (a.eta || 9999) - (b.eta || 9999));
+
+  document.getElementById('eta-table').innerHTML = etaData.map(r => {
+    const etaTxt = r.eta === null ? '—' :
+      r.eta < 2 ? `<span style="color:var(--red)">${r.eta.toFixed(1)}h</span>` :
+      r.eta < 8 ? `<span style="color:var(--yellow)">${r.eta.toFixed(1)}h</span>` :
+      `<span style="color:var(--green)">${r.eta.toFixed(1)}h</span>`;
+    const tasaTxt = r.tasa ? Math.round(r.tasa) + ' Lts/h' : 'sin datos';
+    return `<div class="eta-row">
+      <div class="eta-name">${r.estacion}</div>
+      <div class="eta-rate">${tasaTxt}</div>
+      <div class="eta-val">${etaTxt}</div>
+    </div>`;
+  }).join('');
+
+  // Gráfico tasa por estación
+  const estaciones = Object.keys(tasaMap);
+  const tasasAvg = estaciones.map(e => {
+    const arr = tasaMap[e];
+    return Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+  });
+  const sorted_idx = estaciones.map((_,i)=>i).sort((a,b)=>tasasAvg[b]-tasasAvg[a]);
+
+  destroyChart('chart-tasa');
+  charts['chart-tasa'] = new Chart(document.getElementById('chart-tasa'), {
+    type: 'bar',
+    data: {
+      labels: sorted_idx.map(i => estaciones[i]),
+      datasets: [{ data: sorted_idx.map(i => tasasAvg[i]), backgroundColor: PALETTE.slice(0,estaciones.length), borderRadius: 3 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#4a5168', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#8890a4', font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // Gráfico tendencia por estación
+  const byStation = {};
+  allData.forEach(r => {
+    if (!byStation[r.estacion]) byStation[r.estacion] = [];
+    byStation[r.estacion].push({ x: r.fecha_dt, y: r.saldo_lts });
+  });
+  const estList = Object.keys(byStation).sort();
+
+  const toggleContainer = document.getElementById('station-toggles');
+  toggleContainer.innerHTML = estList.map((e, i) => `
+    <button onclick="toggleLine('${e}', this)" data-est="${e}"
+      style="background:${PALETTE[i%PALETTE.length]}20;border:1px solid ${PALETTE[i%PALETTE.length]}50;
+      border-radius:4px;padding:3px 10px;color:${PALETTE[i%PALETTE.length]};font-size:11px;cursor:pointer;transition:opacity 0.15s">
+      ${e}
+    </button>`).join('');
+
+  const datasets = estList.map((e, i) => ({
+    label: e,
+    data: byStation[e].sort((a,b)=>a.x-b.x),
+    borderColor: PALETTE[i % PALETTE.length],
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    pointRadius: 0,
+    tension: 0.2
+  }));
+
+  destroyChart('chart-tendencia');
+  charts['chart-tendencia'] = new Chart(document.getElementById('chart-tendencia'), {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      parsing: { xAxisKey: 'x', yAxisKey: 'y' },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          type: 'time',
+          time: { tooltipFormat: 'dd/MM HH:mm', displayFormats: { hour: 'dd/MM HH:mm', day: 'dd/MM' } },
+          ticks: { color: '#4a5168', font: { size: 10 }, maxTicksLimit: 6 },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        },
+        y: {
+          ticks: { color: '#4a5168', font: { size: 10 }, callback: v => (v/1000).toFixed(0)+'k' },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        }
+      }
+    }
+  });
+}
+
+function toggleLine(estacion, btn) {
+  const chart = charts['chart-tendencia'];
+  if (!chart) return;
+  const ds = chart.data.datasets.find(d => d.label === estacion);
+  if (!ds) return;
+  ds.hidden = !ds.hidden;
+  btn.style.opacity = ds.hidden ? '0.3' : '1';
+  chart.update();
+}
+
+function renderPatrones() {
+  const consumos = calcConsumo(allData);
+  if (!consumos.length) {
+    document.getElementById('chart-hora').closest('.card').innerHTML =
+      '<div class="card-title">Patrones horarios</div><div style="color:var(--text3);font-size:12px;padding:20px 0">Insuficientes datos para calcular patrones. Se necesitan al menos 2 scrapes consecutivos por estación.</div>';
+    return;
+  }
+
+  // Por hora
+  const porHora = Array(24).fill(null).map(() => []);
+  consumos.forEach(c => porHora[c.hora].push(c.tasa_hora));
+  const avgHora = porHora.map(arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : 0);
+
+  destroyChart('chart-hora');
+  charts['chart-hora'] = new Chart(document.getElementById('chart-hora'), {
+    type: 'bar',
+    data: {
+      labels: Array.from({length:24}, (_,i) => i + ':00'),
+      datasets: [{
+        data: avgHora,
+        backgroundColor: avgHora.map(v => {
+          const max = Math.max(...avgHora);
+          const ratio = max ? v/max : 0;
+          return ratio > 0.7 ? '#e84545' : ratio > 0.4 ? '#f0a500' : '#4a9eff';
+        }),
+        borderRadius: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#4a5168', font: { size: 9 }, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#4a5168', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+
+  // Por día semana
+  const porDia = Array(7).fill(null).map(() => []);
+  consumos.forEach(c => porDia[c.num_dia].push(c.tasa_hora));
+  const avgDia = porDia.map(arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : 0);
+
+  destroyChart('chart-dia');
+  charts['chart-dia'] = new Chart(document.getElementById('chart-dia'), {
+    type: 'bar',
+    data: {
+      labels: DIAS,
+      datasets: [{
+        data: avgDia,
+        backgroundColor: ['#4a9eff','#4a9eff','#4a9eff','#4a9eff','#4a9eff','#f0a500','#f0a500'],
+        borderRadius: 3
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8890a4', font: { size: 11 } }, grid: { display: false } },
+        y: { ticks: { color: '#4a5168', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+
+  // Heatmap hora × día
+  const hm = Array(7).fill(null).map(() => Array(24).fill([]));
+  consumos.forEach(c => {
+    hm[c.num_dia][c.hora] = [...hm[c.num_dia][c.hora], c.tasa_hora];
+  });
+  const hmAvg = hm.map(row => row.map(arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : null));
+  const allVals = hmAvg.flat().filter(v => v !== null);
+  const maxVal = allVals.length ? Math.max(...allVals) : 1;
+
+  const horasLabel = Array.from({length:24}, (_,i) => i);
+  let html = `<div style="display:grid;grid-template-columns:60px repeat(24,1fr);gap:2px;min-width:600px">`;
+  html += `<div></div>` + horasLabel.map(h => `<div class="hm-label">${h}</div>`).join('');
+  DIAS.forEach((dia, d) => {
+    html += `<div style="font-size:10px;color:var(--text3);display:flex;align-items:center;padding-right:6px;justify-content:flex-end">${dia.substring(0,3)}</div>`;
+    horasLabel.forEach(h => {
+      const v = hmAvg[d][h];
+      if (v === null) {
+        html += `<div class="hm-cell" style="background:var(--bg3)"></div>`;
+      } else {
+        const ratio = v / maxVal;
+        const r = Math.round(232 * ratio);
+        const g = Math.round(69 + (165-69) * (1-ratio));
+        const b = Math.round(ratio > 0.5 ? 69 : 255 * (1 - ratio*2));
+        const bg = `rgba(${r},${g},${b},${0.2 + ratio*0.6})`;
+        html += `<div class="hm-cell" style="background:${bg}" title="${dia} ${h}:00 — ${v} Lts/h">${v > 0 ? v : ''}</div>`;
+      }
+    });
+  });
+  html += '</div>';
+  document.getElementById('heatmap-container').innerHTML = html;
+}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
+</body>
+</html>
