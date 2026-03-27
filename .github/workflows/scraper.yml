@@ -2,13 +2,20 @@ name: Biopetrol Scraper
 
 on:
   schedule:
-    # Cada 30 minutos entre 06:00 y 22:00 hora Bolivia (UTC-4)
-    # En UTC: 10:00 – 02:00 del día siguiente
+    # Biopetrol: cada 30 min de 06:00 a 22:00 hora Bolivia (UTC-4 = 10:00-02:00 UTC)
     - cron: '0,30 10-23 * * *'
     - cron: '0,30 0-2  * * *'
+    # Empacar: una vez al día a las 09:00 hora Bolivia (13:00 UTC)
+    - cron: '0 13 * * *'
 
-  # Permite ejecutar manualmente desde la pestaña Actions
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'Qué scraper ejecutar'
+        required: false
+        default: 'ambos'
+        type: choice
+        options: [ambos, biopetrol, empacar]
 
 jobs:
   scrape:
@@ -18,7 +25,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          # Necesario para poder hacer commit del CSV actualizado
           fetch-depth: 0
 
       - name: Setup Python
@@ -29,14 +35,24 @@ jobs:
       - name: Instalar dependencias
         run: pip install requests
 
-      - name: Ejecutar scraper
+      - name: Ejecutar scraper Biopetrol
+        if: >
+          github.event_name == 'schedule' ||
+          github.event.inputs.target == 'ambos' ||
+          github.event.inputs.target == 'biopetrol'
         run: python scraper.py
 
-      - name: Commit y push del CSV actualizado
+      - name: Ejecutar scraper Empacar
+        if: >
+          (github.event_name == 'schedule' && github.event.schedule == '0 13 * * *') ||
+          github.event.inputs.target == 'ambos' ||
+          github.event.inputs.target == 'empacar'
+        run: python scraper_empacar.py
+
+      - name: Commit y push de datos
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/saldos.csv
-          # Solo hace commit si hay cambios reales
+          git add data/saldos.csv data/empacar.csv || true
           git diff --staged --quiet || git commit -m "data: scrape $(date -u '+%Y-%m-%d %H:%M') UTC"
           git push
