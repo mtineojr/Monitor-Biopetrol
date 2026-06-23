@@ -48,3 +48,18 @@ else:
     idx = response.text.lower().find("saldo")
     print("CONTEXTO ALREDEDOR DE 'saldo':")
     print(response.text[max(0, idx-200):idx+500])
+
+import re
+
+# Mostrar TODOS los bloques array(5) encontrados con su saldo
+bloques = re.split(r'(?=array\(5\)\s*\{)', response.text)
+count = 0
+for b in bloques:
+    if 'array(5)' not in b:
+        continue
+    count += 1
+    saldo_int = re.search(r'"saldo"\]\s*=>\s*int\((\d+)\)', b)
+    saldo_str = re.search(r'"saldo"\]\s*=>\s*string\(\d+\)\s*"([^"]+)"', b)
+    un = re.search(r'"un"\]\s*=>\s*int\((\d+)\)', b)
+    print(f"\n--- BLOQUE {count} | un={un.group(1) if un else '?'} | saldo_int={saldo_int.group(1) if saldo_int else 'N/A'} | saldo_str={saldo_str.group(1) if saldo_str else 'N/A'}")
+    print(b[:600])
