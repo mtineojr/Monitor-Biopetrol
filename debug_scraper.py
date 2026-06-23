@@ -36,3 +36,15 @@ print("─" * 60)
 print("CONTIENE 'array(5)':", "array(5)" in response.text)
 print("CONTIENE 'saldo':", "saldo" in response.text.lower())
 print("CONTIENE 'var_dump':", "var_dump" in response.text.lower())
+
+import re
+# Buscar y mostrar el primer bloque array(5)
+match = re.search(r'array\(5\)\s*\{.{0,800}', response.text, re.DOTALL)
+if match:
+    print("BLOQUE array(5) ENCONTRADO:")
+    print(match.group(0))
+else:
+    # Si no, buscar contexto alrededor de "saldo"
+    idx = response.text.lower().find("saldo")
+    print("CONTEXTO ALREDEDOR DE 'saldo':")
+    print(response.text[max(0, idx-200):idx+500])
