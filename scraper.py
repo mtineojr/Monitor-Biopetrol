@@ -82,30 +82,24 @@ def parse_stations(html: str, tabla: dict) -> tuple[list[dict], list[str]]:
             continue
 
         try:
-            # ── Campos del array PHP ──────────────────────────────
             id_med = re.search(r'"id"\]\s*=>\s*int\((\d+)\)',   bloque)
             un     = re.search(r'"un"\]\s*=>\s*int\((\d+)\)',   bloque)
             fecha  = re.search(r'"fecha"\]\s*=>\s*string\(\d+\)\s*"([^"]+)"', bloque)
 
-            # saldo: ahora puede ser int(...) o string(N) "..." — soportamos ambos
             saldo = (
                 re.search(r'"saldo"\]\s*=>\s*int\((\d+)\)',               bloque) or
                 re.search(r'"saldo"\]\s*=>\s*string\(\d+\)\s*"([^"]+)"', bloque)
             )
 
-            # ── Campos operativos ─────────────────────────────────
             mangueras  = re.search(r'mangueras:\s*(\d+)',                       bloque)
             carga_prom = re.search(r'carga promedio:\s*(\d+)',                  bloque)
             vehiculos  = re.search(r'cantidad de vehiculos:\s*([\d.]+)',        bloque)
             tiempo_mg  = re.search(r'tiempo de carga por manguera:\s*([\d.]+)', bloque)
 
-            # ── Nombre desde HTML ─────────────────────────────────
-            # Nuevo formato: <div class="... bg-oscuro-1 ...">NOMBRE</div>
             nombre_raw = re.search(
                 r'bg-oscuro-1[^>]*>\s*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s\-\.]{2,}?)\s*\n',
                 bloque, re.IGNORECASE
             )
-            # Fallback: formato anterior (antes de "Volumen")
             if not nombre_raw:
                 nombre_raw = re.search(
                     r'\n[ \t]*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s\-\.]{2,}?)\s*\n+\s*Volumen',
@@ -144,6 +138,21 @@ def parse_stations(html: str, tabla: dict) -> tuple[list[dict], list[str]]:
             continue
 
     return stations, nuevos
+
+
+def sanity_check(records: list[dict]) -> bool:
+    """
+    Detecta si el servidor está en modo degradado.
+    Aborta si todos los saldos son idénticos (señal de datos congelados).
+    """
+    if not records:
+        return False
+    saldos = [r["saldo_lts"] for r in records]
+    if len(set(saldos)) == 1:
+        print(f"[ABORT] Todos los saldos son idénticos ({saldos[0]} Lts) — "
+              f"servidor en modo degradado. No se guardan datos.")
+        return False
+    return True
 
 
 def save_to_csv(records: list[dict], filepath: str):
@@ -185,13 +194,16 @@ def check_alerts(records: list[dict], nuevos: list[str]):
 def main():
     print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC] Iniciando scrape Biopetrol...")
 
-    tabla    = load_estaciones(ESTACIONES_CSV)
-    html     = fetch_page(URL)
-    records, nuevos = parse_stations(html, tabla)
+    tabla            = load_estaciones(ESTACIONES_CSV)
+    html             = fetch_page(URL)
+    records, nuevos  = parse_stations(html, tabla)
 
     if not records:
         print("[ERROR] No se encontraron registros. Revisar estructura HTML.")
         raise SystemExit(1)
+
+    if not sanity_check(records):
+        raise SystemExit(0)  # Salida limpia — no es un error, el servidor está degradado
 
     save_to_csv(records, OUTPUT_CSV)
     check_alerts(records, nuevos)
