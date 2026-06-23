@@ -2,13 +2,16 @@ import requests
 import re
 import csv
 import os
+import time
+import random
 from datetime import datetime
 
 # ─── CONFIG ───────────────────────────────────────────────
-URL = "http://ec2-3-22-240-207.us-east-2.compute.amazonaws.com/guiasaldos/main/donde/134"
+URL      = "http://ec2-3-22-240-207.us-east-2.compute.amazonaws.com/guiasaldos/main/donde/134"
+BASE_URL = "http://ec2-3-22-240-207.us-east-2.compute.amazonaws.com"
+
 OUTPUT_CSV     = "data/saldos.csv"
 ESTACIONES_CSV = "estaciones.csv"
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; BiopetrolMonitor/1.0)"}
 
 UMBRAL_CRITICO = 500   # Lts — ajustar según criterio
 # ──────────────────────────────────────────────────────────
@@ -32,8 +35,45 @@ def load_estaciones(filepath: str) -> dict:
     return tabla
 
 
+def build_session() -> requests.Session:
+    """
+    Crea una sesión HTTP que imita un navegador real:
+    - Visita la página raíz primero (warm-up) para obtener cookies
+    - Usa headers completos tipo Chrome/Windows
+    - Añade un pequeño delay aleatorio para no parecer bot
+    """
+    session = requests.Session()
+
+    session.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/125.0.0.0 Safari/537.36"
+        ),
+        "Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language":           "es-BO,es;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding":           "gzip, deflate",
+        "Connection":                "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+    })
+
+    # Warm-up: visita la raíz para establecer sesión/cookies
+    try:
+        session.get(BASE_URL, timeout=10)
+        time.sleep(random.uniform(1.0, 2.5))  # pausa humana
+    except Exception:
+        pass  # si falla el warm-up, igual intentamos la URL principal
+
+    return session
+
+
 def fetch_page(url: str) -> str:
-    response = requests.get(url, headers=HEADERS, timeout=15)
+    session = build_session()
+    response = session.get(
+        url,
+        timeout=15,
+        headers={"Referer": BASE_URL + "/"},
+    )
     response.raise_for_status()
     return response.text
 
@@ -87,8 +127,6 @@ def parse_stations(html: str, tabla: dict) -> tuple[list[dict], list[str]]:
             tiempo_mg  = re.search(r'tiempo de carga por manguera:\s*([\d.]+)',bloque)
 
             # ── Nombre desde HTML ─────────────────────────────────
-            # Busca texto en mayúsculas que precede a "Volumen disponible"
-            # Acepta nombres con espacios, tildes y Ñ
             nombre_raw = re.search(
                 r'\n[ \t]*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s\-\.]{2,}?)\s*\n+\s*Volumen',
                 bloque, re.IGNORECASE
