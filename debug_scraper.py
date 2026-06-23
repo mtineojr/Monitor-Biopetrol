@@ -63,3 +63,19 @@ for b in bloques:
     un = re.search(r'"un"\]\s*=>\s*int\((\d+)\)', b)
     print(f"\n--- BLOQUE {count} | un={un.group(1) if un else '?'} | saldo_int={saldo_int.group(1) if saldo_int else 'N/A'} | saldo_str={saldo_str.group(1) if saldo_str else 'N/A'}")
     print(b[:600])
+# Buscar si hay llamadas AJAX o JS que cargan el saldo real
+import re
+
+# Ver si hay fetch/axios/XMLHttpRequest en el HTML
+ajax_calls = re.findall(r'(fetch|axios|XMLHttpRequest|\.ajax|\.get\()[^\n]{0,100}', response.text)
+print("\nLLAMADAS AJAX/JS encontradas:")
+for a in ajax_calls[:10]:
+    print(" ", a)
+
+# Ver si hay scripts que mencionen saldo
+scripts = re.findall(r'<script[^>]*>(.*?)</script>', response.text, re.DOTALL)
+for i, s in enumerate(scripts):
+    if 'saldo' in s.lower():
+        print(f"\nSCRIPT {i+1} contiene 'saldo':")
+        print(s[:500])
+
