@@ -18,11 +18,6 @@ UMBRAL_CRITICO = 500   # Lts — ajustar según criterio
 
 
 def load_estaciones(filepath: str) -> dict:
-    """
-    Carga la tabla de equivalencias unidad_id → nombre comercial.
-    Retorna dict: { "205": "BENI", "315": "BEREA", ... }
-    Si el archivo no existe, retorna dict vacío (no rompe el scraper).
-    """
     tabla = {}
     if not os.path.isfile(filepath):
         print(f"[WARN] No se encontró {filepath} — se usará solo auto-descubrimiento.")
@@ -36,14 +31,7 @@ def load_estaciones(filepath: str) -> dict:
 
 
 def build_session() -> requests.Session:
-    """
-    Crea una sesión HTTP que imita un navegador real:
-    - Visita la página raíz primero (warm-up) para obtener cookies
-    - Usa headers completos tipo Chrome/Windows
-    - Añade un pequeño delay aleatorio para no parecer bot
-    """
     session = requests.Session()
-
     session.headers.update({
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -56,14 +44,11 @@ def build_session() -> requests.Session:
         "Connection":                "keep-alive",
         "Upgrade-Insecure-Requests": "1",
     })
-
-    # Warm-up: visita la raíz para establecer sesión/cookies
     try:
         session.get(BASE_URL, timeout=10)
-        time.sleep(random.uniform(1.0, 2.5))  # pausa humana
+        time.sleep(random.uniform(1.0, 2.5))
     except Exception:
-        pass  # si falla el warm-up, igual intentamos la URL principal
-
+        pass
     return session
 
 
@@ -79,31 +64,14 @@ def fetch_page(url: str) -> str:
 
 
 def resolve_nombre(unidad_id: str, nombre_html: str, tabla: dict) -> tuple[str, str]:
-    """
-    Resuelve el nombre comercial de una estación usando 3 niveles:
-      1. Nombre extraído del HTML  (fuente más fresca)
-      2. Tabla de equivalencias    (fallback manual)
-      3. "UN-XXX (NUEVO)"          (desconocida — dispara alerta)
-
-    Retorna (nombre, fuente) donde fuente es "html" | "tabla" | "nuevo"
-    """
-    # Nivel 1: nombre del HTML limpio y válido
     if nombre_html and len(nombre_html) >= 3:
         return nombre_html.upper().strip(), "html"
-
-    # Nivel 2: tabla de equivalencias
     if unidad_id in tabla:
         return tabla[unidad_id], "tabla"
-
-    # Nivel 3: desconocida
     return f"UN-{unidad_id} (NUEVO)", "nuevo"
 
 
 def parse_stations(html: str, tabla: dict) -> tuple[list[dict], list[str]]:
-    """
-    Extrae los bloques de cada estación del HTML.
-    Retorna (registros, lista_de_ids_nuevos)
-    """
     stations = []
     nuevos   = []
 
@@ -115,22 +83,34 @@ def parse_stations(html: str, tabla: dict) -> tuple[list[dict], list[str]]:
 
         try:
             # ── Campos del array PHP ──────────────────────────────
-            id_med     = re.search(r'"id"\]\s*=>\s*int\((\d+)\)',              bloque)
-            un         = re.search(r'"un"\]\s*=>\s*int\((\d+)\)',              bloque)
-            fecha      = re.search(r'"fecha"\]\s*=>\s*string\(\d+\)\s*"([^"]+)"', bloque)
-            saldo      = re.search(r'"saldo"\]\s*=>\s*string\(\d+\)\s*"([^"]+)"', bloque)
+            id_med = re.search(r'"id"\]\s*=>\s*int\((\d+)\)',   bloque)
+            un     = re.search(r'"un"\]\s*=>\s*int\((\d+)\)',   bloque)
+            fecha  = re.search(r'"fecha"\]\s*=>\s*string\(\d+\)\s*"([^"]+)"', bloque)
+
+            # saldo: ahora puede ser int(...) o string(N) "..." — soportamos ambos
+            saldo = (
+                re.search(r'"saldo"\]\s*=>\s*int\((\d+)\)',               bloque) or
+                re.search(r'"saldo"\]\s*=>\s*string\(\d+\)\s*"([^"]+)"', bloque)
+            )
 
             # ── Campos operativos ─────────────────────────────────
-            mangueras  = re.search(r'mangueras:\s*(\d+)',                      bloque)
-            carga_prom = re.search(r'carga promedio:\s*(\d+)',                 bloque)
-            vehiculos  = re.search(r'cantidad de vehiculos:\s*([\d.]+)',       bloque)
-            tiempo_mg  = re.search(r'tiempo de carga por manguera:\s*([\d.]+)',bloque)
+            mangueras  = re.search(r'mangueras:\s*(\d+)',                       bloque)
+            carga_prom = re.search(r'carga promedio:\s*(\d+)',                  bloque)
+            vehiculos  = re.search(r'cantidad de vehiculos:\s*([\d.]+)',        bloque)
+            tiempo_mg  = re.search(r'tiempo de carga por manguera:\s*([\d.]+)', bloque)
 
             # ── Nombre desde HTML ─────────────────────────────────
+            # Nuevo formato: <div class="... bg-oscuro-1 ...">NOMBRE</div>
             nombre_raw = re.search(
-                r'\n[ \t]*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s\-\.]{2,}?)\s*\n+\s*Volumen',
+                r'bg-oscuro-1[^>]*>\s*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s\-\.]{2,}?)\s*\n',
                 bloque, re.IGNORECASE
             )
+            # Fallback: formato anterior (antes de "Volumen")
+            if not nombre_raw:
+                nombre_raw = re.search(
+                    r'\n[ \t]*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s\-\.]{2,}?)\s*\n+\s*Volumen',
+                    bloque, re.IGNORECASE
+                )
             nombre_html = nombre_raw.group(1).strip() if nombre_raw else ""
 
             if not (saldo and fecha and un):
@@ -144,12 +124,14 @@ def parse_stations(html: str, tabla: dict) -> tuple[list[dict], list[str]]:
                 print(f"[NUEVO] Estación desconocida detectada → unidad_id={unidad_id} | "
                       f"Agregar a estaciones.csv con su nombre comercial.")
 
+            saldo_val = saldo.group(1).replace(",", "") if saldo else "0"
+
             stations.append({
                 "id_medicion":    id_med.group(1)         if id_med    else "",
                 "unidad_id":      unidad_id,
                 "estacion":       nombre,
                 "fecha":          fecha.group(1),
-                "saldo_lts":      int(saldo.group(1).replace(",", "")),
+                "saldo_lts":      int(saldo_val),
                 "mangueras":      int(mangueras.group(1))   if mangueras  else 0,
                 "carga_prom_lts": int(carga_prom.group(1))  if carga_prom else 40,
                 "vehiculos_est":  float(vehiculos.group(1)) if vehiculos  else 0,
@@ -184,9 +166,6 @@ def save_to_csv(records: list[dict], filepath: str):
 
 
 def check_alerts(records: list[dict], nuevos: list[str]):
-    """Imprime resumen y alertas en consola (visible en el log de GitHub Actions)."""
-
-    # Alertas de stock crítico
     criticas = [r for r in records if r["saldo_lts"] < UMBRAL_CRITICO]
     if criticas:
         print(f"\n⚠️  ALERTA STOCK — {len(criticas)} estación(es) bajo {UMBRAL_CRITICO} Lts:")
@@ -195,12 +174,10 @@ def check_alerts(records: list[dict], nuevos: list[str]):
     else:
         print("\n✅ Todas las estaciones sobre el umbral crítico.")
 
-    # Alertas de estaciones nuevas
     if nuevos:
         print(f"\n🆕 ALERTA NUEVAS ESTACIONES — IDs sin mapear: {', '.join(nuevos)}")
         print("   → Identificar nombre comercial y agregar fila en estaciones.csv")
 
-    # Resumen de red
     total_red = sum(r["saldo_lts"] for r in records)
     print(f"\n📊 Saldo total red Biopetrol: {total_red:,} Lts | {len(records)} estaciones\n")
 
